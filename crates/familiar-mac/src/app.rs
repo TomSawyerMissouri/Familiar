@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use eframe::egui::{self, Align2, Color32, Key, RichText, Sense, Stroke, StrokeKind, Vec2};
+use eframe::egui::{self, Align2, Color32, Key, RichText, Sense, StrokeKind, Vec2};
 use familiar_core::storage::{self, SESSION_LENGTHS};
 use familiar_core::{
     Catalog, Engine, History, Level, Manifest, Progress, SessionConfig, SessionPlan, SessionRecord,
@@ -540,7 +540,7 @@ fn tiles(ui: &mut egui::Ui, tiles: &[Tile]) {
         painter.rect_stroke(
             rect,
             4.0,
-            Stroke::new(1.0, theme::OUTLINE),
+            theme::stroke(1.0, theme::OUTLINE),
             StrokeKind::Inside,
         );
         painter.text(

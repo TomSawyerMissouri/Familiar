@@ -12,6 +12,12 @@ pub const GOOD: Color32 = Color32::from_rgb(61, 220, 132);
 pub const WARN: Color32 = Color32::from_rgb(235, 200, 70);
 pub const BAD: Color32 = Color32::from_rgb(215, 38, 61);
 
+/// A line of the given width. Taking `f32` keeps call sites free of the
+/// ambiguous float literals that `Stroke::new(impl Into<f32>, ..)` invites.
+pub fn stroke(width: f32, color: Color32) -> Stroke {
+    Stroke::new(width, color)
+}
+
 /// Monospace font for readouts.
 pub fn mono(size: f32) -> FontId {
     FontId::monospace(size)
@@ -40,11 +46,11 @@ pub fn apply(ctx: &egui::Context) {
     visuals.window_fill = PANEL;
     visuals.override_text_color = Some(TEXT);
     visuals.selection.bg_fill = ACCENT.gamma_multiply(0.45);
-    visuals.selection.stroke = Stroke::new(1.0, ACCENT);
+    visuals.selection.stroke = stroke(1.0, ACCENT);
     visuals.widgets.inactive.weak_bg_fill = PANEL;
-    visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, OUTLINE);
+    visuals.widgets.inactive.bg_stroke = stroke(1.0, OUTLINE);
     visuals.widgets.hovered.weak_bg_fill = Color32::from_rgb(32, 39, 46);
-    visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, ACCENT);
+    visuals.widgets.hovered.bg_stroke = stroke(1.0, ACCENT);
     visuals.widgets.active.weak_bg_fill = Color32::from_rgb(40, 48, 56);
     ctx.set_visuals(visuals);
     ctx.style_mut(|style| {

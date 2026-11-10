@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use eframe::egui::{self, Align2, Color32, Key, Pos2, Rect, Stroke, StrokeKind, Vec2};
+use eframe::egui::{self, Align2, Color32, Key, Pos2, Rect, StrokeKind, Vec2};
 use familiar_core::engine::PUNISHMENT_PAUSE_MS;
 use familiar_core::{Distortion, Engine, EngineState, Event, Mistake, SessionResult};
 
@@ -253,7 +253,7 @@ impl SessionView {
             }
         } else {
             let arm = 14.0;
-            let stroke = Stroke::new(2.0, theme::DIM);
+            let stroke = theme::stroke(2.0, theme::DIM);
             let c = frame.center();
             painter.line_segment([c - Vec2::new(arm, 0.0), c + Vec2::new(arm, 0.0)], stroke);
             painter.line_segment([c - Vec2::new(0.0, arm), c + Vec2::new(0.0, arm)], stroke);
@@ -263,7 +263,12 @@ impl SessionView {
         } else {
             (theme::OUTLINE, 1.0)
         };
-        painter.rect_stroke(frame, 0.0, Stroke::new(width, outline), StrokeKind::Outside);
+        painter.rect_stroke(
+            frame,
+            0.0,
+            theme::stroke(width, outline),
+            StrokeKind::Outside,
+        );
 
         // The response button.
         let hovered = ui.rect_contains_pointer(layout.button);
@@ -278,7 +283,7 @@ impl SessionView {
         painter.rect_stroke(
             layout.button,
             6.0,
-            Stroke::new(1.5, theme::ACCENT),
+            theme::stroke(1.5, theme::ACCENT),
             StrokeKind::Inside,
         );
         painter.text(
