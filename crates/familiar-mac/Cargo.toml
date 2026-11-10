@@ -11,7 +11,12 @@ name = "familiar"
 path = "src/main.rs"
 
 [dependencies]
+eframe = { version = "0.32.3", default-features = false, features = ["accesskit", "default_fonts", "wgpu"] }
+# Not used directly: eframe without default features enables no wgpu backend,
+# so Metal is switched on here.
+wgpu = { version = "25.0.2", default-features = false, features = ["metal", "wgsl"] }
 familiar-core = { path = "../familiar-core" }
+image = { version = "0.25.9", default-features = false, features = ["jpeg"] }
 
 [package.metadata.bundle]
 name = "Familiar"
