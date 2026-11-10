@@ -10,8 +10,18 @@ use std::thread;
 
 use eframe::egui::ColorImage;
 use familiar_core::Distortion;
+use image::imageops::FilterType;
 
 use crate::render::prepare_pixels;
+
+/// Photos are enlarged this many times with a good filter before they become
+/// textures. The source is only 178 x 218 pixels; leaving all of the
+/// enlargement to the GPU's bilinear filter makes faces look smeared.
+const UPSCALE: u32 = 2;
+/// Blur radius of the unsharp mask applied after enlarging.
+const SHARPEN_SIGMA: f32 = 1.2;
+/// Differences below this are left alone, so JPEG noise is not amplified.
+const SHARPEN_THRESHOLD: i32 = 2;
 
 struct Request {
     index: usize,
@@ -69,13 +79,58 @@ impl Loader {
     }
 }
 
-/// Reads and decodes one photo, with grayscale and brightness baked in.
+/// Reads and decodes one photo, with grayscale and brightness baked in,
+/// enlarged and lightly sharpened.
 pub fn decode(path: &Path, distortion: &Distortion) -> Result<ColorImage, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let decoded =
         image::load_from_memory(&bytes).map_err(|e| format!("{}: {e}", path.display()))?;
     let mut rgb = decoded.into_rgb8();
-    let size = [rgb.width() as usize, rgb.height() as usize];
     prepare_pixels(&mut rgb, distortion);
-    Ok(ColorImage::from_rgb(size, &rgb))
+    Ok(enlarge(&rgb))
+}
+
+/// Enlarges a photo with a Lanczos filter and sharpens the result a little.
+fn enlarge(photo: &image::RgbImage) -> ColorImage {
+    let (width, height) = (photo.width() * UPSCALE, photo.height() * UPSCALE);
+    let enlarged = image::imageops::resize(photo, width, height, FilterType::Lanczos3);
+    let sharpened = image::imageops::unsharpen(&enlarged, SHARPEN_SIGMA, SHARPEN_THRESHOLD);
+    ColorImage::from_rgb([width as usize, height as usize], &sharpened)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn photos_are_enlarged_twice_and_keep_flat_areas_flat() {
+        let photo = image::RgbImage::from_pixel(178, 218, image::Rgb([120, 90, 60]));
+        let texture = enlarge(&photo);
+        assert_eq!(texture.size, [356, 436]);
+        let expected = eframe::egui::Color32::from_rgb(120, 90, 60);
+        assert!(texture.pixels.iter().all(|pixel| *pixel == expected));
+    }
+
+    #[test]
+    fn edges_come_out_sharper_than_plain_enlarging() {
+        // A hard vertical edge: black on the left, white on the right.
+        let photo = image::RgbImage::from_fn(40, 8, |x, _| {
+            if x < 20 {
+                image::Rgb([0, 0, 0])
+            } else {
+                image::Rgb([255, 255, 255])
+            }
+        });
+        let texture = enlarge(&photo);
+        let row = &texture.pixels[3 * texture.size[0]..4 * texture.size[0]];
+        // Few pixels are in between black and white: the edge stays narrow.
+        let grey = row.iter().filter(|p| (30..226).contains(&p.r())).count();
+        assert!(grey <= 3, "{grey} grey pixels across the edge");
+    }
+
+    #[test]
+    fn unreadable_files_are_reported_with_their_path() {
+        let error = decode(Path::new("/nonexistent/1.jpg"), &Distortion::NONE).unwrap_err();
+        assert!(error.contains("/nonexistent/1.jpg"), "{error}");
+    }
 }

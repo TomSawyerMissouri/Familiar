@@ -8,7 +8,7 @@ Faces go by quickly. If a person has already appeared in this session — even w
 
 - A session is 40, 80, 120 or 200 faces. About 35% of them are repeats of a person shown earlier in the same session.
 - Each face is shown for the current exposure, then a fixation cross follows. You can answer until the cross disappears.
-- Respond with **Space**, **J**, **Enter**, or a click on the photo or the button. **Esc** quits the session without saving it. If the window loses focus the session pauses.
+- Respond with **Space**, **J**, **Enter**, or a click on the photo or the button. **P** or the on-screen button pauses and resumes; the session also pauses when the window loses focus. **Esc** quits the session without saving it.
 - Every 10 faces the exposure adapts: it shortens when you are accurate and lengthens when you are not, within 250–3000 ms. The exposure you finish on is where the next session starts.
 
 ### Disguise levels
