@@ -41,6 +41,18 @@ pub enum Punishment {
     Hard,
 }
 
+/// How large photos are drawn. The source photos are small, so a smaller
+/// picture is enlarged less and looks sharper.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PhotoSize {
+    Small,
+    #[default]
+    Medium,
+    /// As large as the window allows.
+    Large,
+}
+
 /// User settings and long-term progress.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -50,6 +62,7 @@ pub struct Settings {
     pub data_dir: Option<PathBuf>,
     pub trials_per_session: usize,
     pub punishment: Punishment,
+    pub photo_size: PhotoSize,
     /// Raise and lower the level automatically after each session.
     pub auto_promote: bool,
     pub progress: Progress,
@@ -64,6 +77,7 @@ impl Default for Settings {
             data_dir: None,
             trials_per_session: DEFAULT_SESSION_LENGTH,
             punishment: Punishment::default(),
+            photo_size: PhotoSize::default(),
             auto_promote: true,
             progress: Progress::default(),
             excluded: BTreeSet::new(),
@@ -274,6 +288,7 @@ mod tests {
             data_dir: Some(PathBuf::from("/Volumes/Faces")),
             trials_per_session: 200,
             punishment: Punishment::Hard,
+            photo_size: PhotoSize::Small,
             auto_promote: false,
             progress: Progress {
                 level: Level::new(4),
