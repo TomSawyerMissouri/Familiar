@@ -7,8 +7,8 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use eframe::egui::{self, Align2, Color32, Key, RichText, Sense, StrokeKind, Vec2};
 use familiar_core::storage::{self, SESSION_LENGTHS};
 use familiar_core::{
-    Catalog, Distortion, Engine, History, Level, Manifest, Outcome, Progress, Punishment,
-    SessionConfig, SessionPlan, SessionRecord, SessionResult, Settings, generate,
+    Catalog, Distortion, Engine, History, Level, Manifest, Outcome, PhotoSize, Progress,
+    Punishment, SessionConfig, SessionPlan, SessionRecord, SessionResult, Settings, generate,
 };
 
 use crate::history_view;
@@ -292,6 +292,7 @@ impl App {
                     engine,
                     self.faces_dir.clone(),
                     self.settings.punishment,
+                    self.settings.photo_size,
                     self.now_ms(),
                 );
                 self.screen = Screen::Session(Box::new(view));
@@ -588,6 +589,28 @@ impl App {
                                 }
                             });
                             ui.label(dim(punishment_name(self.settings.punishment).1).size(12.0));
+                        });
+                        ui.end_row();
+
+                        ui.label(dim("Photo size"));
+                        ui.vertical(|ui| {
+                            ui.horizontal(|ui| {
+                                for (option, name) in [
+                                    (PhotoSize::Small, "Small"),
+                                    (PhotoSize::Medium, "Medium"),
+                                    (PhotoSize::Large, "Large"),
+                                ] {
+                                    let selected = self.settings.photo_size == option;
+                                    if ui.selectable_label(selected, name).clicked() {
+                                        self.settings.photo_size = option;
+                                        changed = true;
+                                    }
+                                }
+                            });
+                            ui.label(
+                                dim("The photos are only 178 × 218 pixels: smaller looks sharper.")
+                                    .size(12.0),
+                            );
                         });
                         ui.end_row();
 

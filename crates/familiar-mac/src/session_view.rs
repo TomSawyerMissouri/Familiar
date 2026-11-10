@@ -5,7 +5,9 @@ use std::path::PathBuf;
 
 use eframe::egui::{self, Align2, Color32, Key, Pos2, Rect, StrokeKind, Vec2};
 use familiar_core::engine::PUNISHMENT_PAUSE_MS;
-use familiar_core::{Distortion, Engine, EngineState, Event, Mistake, Punishment, SessionResult};
+use familiar_core::{
+    Distortion, Engine, EngineState, Event, Mistake, PhotoSize, Punishment, SessionResult,
+};
 
 use crate::loader::Loader;
 use crate::render::{PHOTO_ASPECT, paint_photo};
@@ -35,6 +37,7 @@ pub struct SessionView {
     engine: Engine,
     faces_dir: PathBuf,
     punishment: Punishment,
+    photo_size: PhotoSize,
     loader: Loader,
     photos: HashMap<usize, Photo>,
     /// First trial whose photo has not been requested yet.
@@ -54,6 +57,7 @@ impl SessionView {
         mut engine: Engine,
         faces_dir: PathBuf,
         punishment: Punishment,
+        photo_size: PhotoSize,
         now_ms: u64,
     ) -> Self {
         let countdown = engine
@@ -67,6 +71,7 @@ impl SessionView {
             engine,
             faces_dir,
             punishment,
+            photo_size,
             loader: Loader::new(),
             photos: HashMap::new(),
             next_request: 0,
@@ -85,12 +90,13 @@ impl SessionView {
         let ctx = ui.ctx().clone();
         ctx.request_repaint();
 
-        let layout = Layout::new(ui.max_rect(), self.shake(now_ms));
+        let layout = Layout::new(ui.max_rect(), self.shake(now_ms), self.photo_size);
         let input = ctx.input(|i| Input {
             respond: i.key_pressed(Key::Space)
                 || i.key_pressed(Key::J)
                 || i.key_pressed(Key::Enter),
             escape: i.key_pressed(Key::Escape),
+            pause: i.key_pressed(Key::P),
             click: i
                 .pointer
                 .primary_pressed()
@@ -122,13 +128,14 @@ impl SessionView {
             .click
             .is_some_and(|pos| layout.photo.contains(pos) || layout.button.contains(pos));
         let pressed = input.respond || clicked_target;
+        let clicked_pause = input.click.is_some_and(|pos| layout.pause.contains(pos));
 
         let mut exit = None;
         if self.engine.state() == EngineState::Paused {
-            if input.focused && (input.respond || input.click.is_some()) {
+            if input.focused && (input.respond || input.pause || input.click.is_some()) {
                 self.engine.resume(now_ms);
             }
-        } else if !input.focused {
+        } else if !input.focused || input.pause || clicked_pause {
             self.engine.pause(now_ms);
         } else {
             let events = if pressed {
@@ -328,8 +335,36 @@ impl SessionView {
         painter.text(
             layout.button.center() + Vec2::new(0.0, 18.0),
             Align2::CENTER_CENTER,
-            "Space · J · Enter        Esc to quit",
+            "Space · J · Enter",
             theme::label(12.0),
+            theme::DIM,
+        );
+
+        // The pause button, small and out of the way.
+        let pause_fill = if ui.rect_contains_pointer(layout.pause) {
+            Color32::from_rgb(32, 39, 46)
+        } else {
+            theme::PANEL
+        };
+        painter.rect_filled(layout.pause, 6.0, pause_fill);
+        painter.rect_stroke(
+            layout.pause,
+            6.0,
+            theme::stroke(1.0, theme::OUTLINE),
+            StrokeKind::Inside,
+        );
+        painter.text(
+            layout.pause.center() - Vec2::new(0.0, 8.0),
+            Align2::CENTER_CENTER,
+            "PAUSE",
+            theme::mono(14.0),
+            theme::TEXT,
+        );
+        painter.text(
+            layout.pause.center() + Vec2::new(0.0, 11.0),
+            Align2::CENTER_CENTER,
+            "P  ·  Esc quits",
+            theme::label(11.0),
             theme::DIM,
         );
 
@@ -369,7 +404,7 @@ impl SessionView {
             painter.text(
                 layout.overlay.center() + Vec2::new(0.0, 30.0),
                 Align2::CENTER_CENTER,
-                "Space to continue · Esc to quit",
+                "Space or P to continue · Esc to quit",
                 theme::label(15.0),
                 theme::DIM,
             );
@@ -380,6 +415,7 @@ impl SessionView {
 struct Input {
     respond: bool,
     escape: bool,
+    pause: bool,
     click: Option<Pos2>,
     focused: bool,
 }
@@ -392,12 +428,13 @@ struct Layout {
     progress: Rect,
     photo: Rect,
     button: Rect,
+    pause: Rect,
 }
 
 impl Layout {
     /// `screen` is the whole panel; everything but the full-screen overlays
     /// is moved by `shake`.
-    fn new(screen: Rect, shake: Vec2) -> Self {
+    fn new(screen: Rect, shake: Vec2, photo_size: PhotoSize) -> Self {
         let overlay = screen;
         let screen = screen.translate(shake);
         let progress = Rect::from_min_size(screen.min, Vec2::new(screen.width(), 4.0));
@@ -413,7 +450,16 @@ impl Layout {
             Pos2::new(screen.left() + 24.0, progress.bottom() + 52.0),
             Pos2::new(screen.right() - 24.0, button.top() - 24.0),
         );
-        let height = area.height().min(area.width() / PHOTO_ASPECT).max(1.0);
+        let pause_size = Vec2::new(120.0, 48.0);
+        let pause = Rect::from_center_size(
+            Pos2::new(
+                screen.right() - 24.0 - pause_size.x / 2.0,
+                button.center().y,
+            ),
+            pause_size,
+        );
+        let fitted = area.height().min(area.width() / PHOTO_ASPECT);
+        let height = fitted.min(max_photo_height(photo_size)).max(1.0);
         let photo = Rect::from_center_size(area.center(), Vec2::new(height * PHOTO_ASPECT, height));
         Self {
             screen,
@@ -421,6 +467,59 @@ impl Layout {
             progress,
             photo,
             button,
+            pause,
+        }
+    }
+}
+
+/// Tallest a photo is drawn, in points. The source is 218 pixels tall.
+fn max_photo_height(size: PhotoSize) -> f32 {
+    match size {
+        PhotoSize::Small => 290.0,
+        PhotoSize::Medium => 440.0,
+        PhotoSize::Large => f32::INFINITY,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn layout(width: f32, height: f32, size: PhotoSize) -> Layout {
+        let screen = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, height));
+        Layout::new(screen, Vec2::ZERO, size)
+    }
+
+    #[test]
+    fn photo_size_limits_how_large_the_photo_is_drawn() {
+        let small = layout(1400.0, 1000.0, PhotoSize::Small).photo;
+        let medium = layout(1400.0, 1000.0, PhotoSize::Medium).photo;
+        let large = layout(1400.0, 1000.0, PhotoSize::Large).photo;
+        assert_eq!(small.height(), 290.0);
+        assert_eq!(medium.height(), 440.0);
+        assert!(large.height() > 700.0);
+        for photo in [small, medium, large] {
+            assert!((photo.width() / photo.height() - PHOTO_ASPECT).abs() < 1e-4);
+            assert_eq!(photo.center().x, 700.0, "centred horizontally");
+        }
+    }
+
+    #[test]
+    fn a_small_window_shrinks_every_photo_size_to_fit() {
+        for size in [PhotoSize::Small, PhotoSize::Medium, PhotoSize::Large] {
+            let l = layout(720.0, 400.0, size);
+            assert!(l.photo.bottom() <= l.button.top(), "{size:?}");
+            assert!(l.photo.top() >= l.progress.bottom(), "{size:?}");
+        }
+    }
+
+    #[test]
+    fn the_pause_button_does_not_overlap_the_response_targets() {
+        for width in [720.0, 1000.0, 1600.0] {
+            let l = layout(width, 780.0, PhotoSize::Large);
+            assert!(!l.pause.intersects(l.button), "width {width}");
+            assert!(!l.pause.intersects(l.photo), "width {width}");
+            assert!(l.screen.contains_rect(l.pause));
         }
     }
 }
