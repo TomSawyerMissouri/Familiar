@@ -13,12 +13,14 @@ pub mod error;
 pub mod manifest;
 pub mod progress;
 pub mod scoring;
+pub mod session;
 
 pub use catalog::Catalog;
 pub use error::{Error, Result};
 pub use manifest::{Appearance, Manifest, Person, Photo};
 pub use progress::{Level, Progress};
 pub use scoring::{Counts, Outcome};
+pub use session::{Distortion, SessionConfig, SessionPlan, Trial, TrialKind, generate};
 
 /// Crate version, shown in the app's about screen.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
