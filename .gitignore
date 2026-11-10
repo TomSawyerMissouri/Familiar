@@ -16,6 +16,8 @@ data/
 *.jpg
 *.jpeg
 *.png
+# ...except the app icon, which is drawn by scripts/make_icon.py
+!crates/familiar-mac/icons/*.png
 *.zip
 *.part
 drive_response.html
