@@ -1,0 +1,26 @@
+{
+  "source": "Synthetic test fixture, no real photos",
+  "attrs": ["Eyeglasses", "Wearing_Hat", "No_Beard", "Mustache", "Goatee", "Sideburns", "Bald", "Bangs",
+            "Black_Hair", "Blond_Hair", "Brown_Hair", "Gray_Hair", "Heavy_Makeup", "Wearing_Lipstick",
+            "Smiling", "Mouth_Slightly_Open", "Straight_Hair", "Wavy_Hair", "Receding_Hairline",
+            "Male", "Young", "Pale_Skin", "Blurry"],
+  "people": [
+    {"id": "anna", "photos": [
+      {"file": "anna/1.jpg", "attrs": {"No_Beard": 1, "Blond_Hair": 1, "Smiling": 1, "Young": 1}},
+      {"file": "anna/2.jpg", "attrs": {"No_Beard": 1, "Blond_Hair": 1, "Eyeglasses": 1, "Young": 1}},
+      {"file": "anna/3.jpg", "attrs": {"No_Beard": 1, "Brown_Hair": 1, "Wearing_Hat": 1, "Young": 1, "Blurry": 1}}
+    ]},
+    {"id": "bella", "photos": [
+      {"file": "bella/1.jpg", "attrs": {"No_Beard": 1, "Blond_Hair": 1, "Smiling": 1, "Young": 1}},
+      {"file": "bella/2.jpg", "attrs": {"No_Beard": 1, "Blond_Hair": 1, "Young": 1, "Pale_Skin": 1}}
+    ]},
+    {"id": "carl", "photos": [
+      {"file": "carl/1.jpg", "attrs": {"Male": 1, "Black_Hair": 1, "Mustache": 1}},
+      {"file": "carl/2.jpg", "attrs": {"Male": 1, "Black_Hair": 1, "Mustache": 1, "Eyeglasses": 1}},
+      {"file": "carl/3.jpg", "attrs": {"Male": 1, "Gray_Hair": 1, "No_Beard": 1}}
+    ]},
+    {"id": "dora", "photos": [
+      {"file": "dora/1.jpg", "attrs": {"No_Beard": 1, "Black_Hair": 1, "Young": 1}}
+    ]}
+  ]
+}
