@@ -69,7 +69,7 @@ cargo install cargo-bundle
 cargo bundle --release --package familiar-mac
 ```
 
-The app is written to `target/release/bundle/osx/Familiar.app`; drag it to Applications. It is not signed with an Apple certificate, so the first time right-click it and choose **Open**. macOS will also ask for access to the Documents folder.
+Run it from the repository root: the icon path is resolved against the current directory. The app is written to `target/release/bundle/osx/Familiar.app`; drag it to Applications. It is not signed with an Apple certificate, so the first time right-click it and choose **Open**. macOS will also ask for access to the Documents folder.
 
 If `cargo install cargo-bundle` fails on an older Rust, install a version that still supports it, for example `cargo install cargo-bundle --version 0.8.0 --locked`.
 
@@ -80,6 +80,7 @@ If `cargo install cargo-bundle` fails on an older Rust, install a version that s
 | `crates/familiar-core` | Training logic with no UI: session planning, the session state machine, scoring, levels, storage. Platform-independent, to be reused on iOS. |
 | `crates/familiar-mac` | The macOS app (`eframe`/`egui`). |
 | `scripts/prepare_celeba.py` | Downloads CelebA and prepares the face set. |
+| `scripts/make_icon.py` | Draws the app icon into `crates/familiar-mac/icons`. |
 
 ## Development
 

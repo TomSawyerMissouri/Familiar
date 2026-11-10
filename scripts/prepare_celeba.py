@@ -1,35 +1,36 @@
 #!/usr/bin/env python3
 """
-Подготовка набора CelebA для тренажёра «Опознание».
+Prepares the CelebA face set for the Familiar trainer.
 
-Что делает:
-  1. Открывает официальную страницу CelebA (MMLab CUHK), берёт с неё ссылку на папку
-     Google Drive (вместе с ключом доступа resourcekey), находит в папке и скачивает
-     только три нужных файла:
-       img_align_celeba.zip     ~1.4 ГБ  выровненные фото
-       identity_CelebA.txt      ~3 МБ    какому человеку принадлежит фото
-       list_attr_celeba.txt     ~25 МБ   признаки: очки, борода, шляпа, цвет волос...
-     Суммарный объём скачивания ограничен (по умолчанию 3 ГБ). Если файл больше
-     оставшегося лимита, скачивание не начинается или прерывается.
-  2. Отбирает людей, у которых не меньше --min-photos фото.
-  3. Для каждого берёт до --per-person снимков, стараясь, чтобы они максимально
-     различались по облику (очки / без, борода / без, другой цвет волос и т. д.).
-  4. Раскладывает фото по папкам: <out>/faces/<номер человека>/<файл>.jpg
-     и пишет <out>/faces/manifest.json с признаками каждого фото.
+What it does:
+  1. Opens the official CelebA page (MMLab CUHK), takes the link to the Google Drive
+     folder from it (together with the resourcekey access key), finds and downloads
+     only the three files that are needed:
+       img_align_celeba.zip     ~1.4 GB  aligned photos
+       identity_CelebA.txt      ~3 MB    which person each photo belongs to
+       list_attr_celeba.txt     ~25 MB   attributes: glasses, beard, hat, hair colour...
+     The total download size is limited (3 GB by default). If a file is larger than
+     what is left of the limit, the download is not started or is interrupted.
+  2. Selects the people who have at least --min-photos photos.
+  3. For each of them takes up to --per-person pictures, trying to make them differ
+     in appearance as much as possible (glasses / none, beard / none, another hair
+     colour and so on).
+  4. Sorts the photos into folders: <out>/faces/<person number>/<file>.jpg
+     and writes <out>/faces/manifest.json with the attributes of every photo.
 
-Уже скачанные файлы в папке raw не скачиваются повторно. Архив можно положить
-как есть (img_align_celeba.zip) или распакованным (папка img_align_celeba).
+Files already downloaded into the raw folder are not downloaded again. The archive
+can be left as it is (img_align_celeba.zip) or unpacked (the img_align_celeba folder).
 
-Только стандартная библиотека Python 3.8+, ничего устанавливать не нужно.
+Only the Python 3.8+ standard library, nothing needs to be installed.
 
-Примеры:
+Examples:
   python prepare_celeba.py
-  python prepare_celeba.py --people 600            # компактная выборка для телефона
-  python prepare_celeba.py --delete-zip            # удалить архив после обработки
-  python prepare_celeba.py --skip-download         # файлы уже лежат в <out>/raw
+  python prepare_celeba.py --people 600            # a compact selection for a phone
+  python prepare_celeba.py --delete-zip            # delete the archive when done
+  python prepare_celeba.py --skip-download         # the files are already in <out>/raw
 
-Лицензия CelebA: только некоммерческое исследовательское использование,
-копирование и распространение запрещены. Набор — для личной тренировки, не передавай его другим.
+CelebA licence: non-commercial research use only, copying and redistribution are
+forbidden. The set is for personal training; do not pass it on to others.
 """
 
 import argparse
@@ -50,10 +51,10 @@ import zipfile
 GB = 1_000_000_000
 PAGE_URL = "https://mmlab.ie.cuhk.edu.hk/projects/CelebA.html"
 
-# Папка Google Drive со страницы CelebA (на случай, если страницу не удастся прочитать).
+# The Google Drive folder from the CelebA page (in case the page cannot be read).
 FALLBACK_FOLDER = ("0B7EVK8r0v71pWEZsZE9oNnFzTm8", "0-5BR16BdXnb8hVj6CNHKzLg")
 
-# Нужные файлы: имя -> (ожидаемый MD5, примерный размер, запасной Drive ID)
+# Needed files: name -> (expected MD5, approximate size, fallback Drive ID)
 NEEDED = {
     "identity_CelebA.txt": ("32bd1bd63d3c78cd57e08160ec5ed1e2", 3_500_000, "1_ee_0u7vcNLOfNLegJRHmolfH5ICW-XS"),
     "list_attr_celeba.txt": ("75e246fa4810816ffd6ee81facbd244c", 27_000_000, "0B7EVK8r0v71pblRyaVFSWGxPY0U"),
@@ -61,14 +62,14 @@ NEEDED = {
 }
 ORDER = ["identity_CelebA.txt", "list_attr_celeba.txt", "img_align_celeba.zip"]
 
-# Признаки, по которым меняется облик. По ним подбираются разные снимки одного человека.
+# Attributes that change the appearance. Different pictures of one person are picked by them.
 LOOK_ATTRS = [
     "Eyeglasses", "Wearing_Hat", "No_Beard", "Mustache", "Goatee", "Sideburns",
     "Bald", "Bangs", "Black_Hair", "Blond_Hair", "Brown_Hair", "Gray_Hair",
     "Heavy_Makeup", "Wearing_Lipstick", "Smiling", "Mouth_Slightly_Open",
     "Straight_Hair", "Wavy_Hair", "Receding_Hairline",
 ]
-# Признаки, которые сохраняются в manifest.json для уровней сложности в приложении.
+# Attributes that are kept in manifest.json for the difficulty levels of the app.
 KEEP_ATTRS = LOOK_ATTRS + ["Male", "Young", "Pale_Skin", "Blurry"]
 
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -91,9 +92,9 @@ class Budget:
 
 
 def human(n):
-    for unit in ("Б", "КБ", "МБ", "ГБ"):
-        if n < 1000 or unit == "ГБ":
-            return f"{n:.1f} {unit}" if unit != "Б" else f"{n} {unit}"
+    for unit in ("B", "kB", "MB", "GB"):
+        if n < 1000 or unit == "GB":
+            return f"{n:.1f} {unit}" if unit != "B" else f"{n} {unit}"
         n /= 1000
 
 
@@ -118,10 +119,10 @@ def get_text(url, limit=3_000_000):
         return r.read(limit).decode("utf-8", "replace")
 
 
-# ---------- поиск файлов на Google Drive ----------
+# ---------- finding the files on Google Drive ----------
 
 def find_root_folder():
-    """Берёт ссылку на папку Drive (id + resourcekey) со страницы CelebA."""
+    """Takes the link to the Drive folder (id + resourcekey) from the CelebA page."""
     try:
         page = html.unescape(get_text(PAGE_URL))
         m = re.search(r"drive\.google\.com/drive/folders/([\w-]+)\?resourcekey=([\w-]+)", page)
@@ -130,14 +131,14 @@ def find_root_folder():
         m = re.search(r"drive\.google\.com/drive/folders/([\w-]+)", page)
         if m:
             return m.group(1), None
-        print("  ! На странице CelebA не нашлась ссылка на Google Drive, беру известную папку")
+        print("  ! No Google Drive link found on the CelebA page, using the known folder")
     except Exception as e:
-        print(f"  ! Не удалось открыть страницу CelebA ({e}), беру известную папку")
+        print(f"  ! Could not open the CelebA page ({e}), using the known folder")
     return FALLBACK_FOLDER
 
 
 def list_folder(folder_id, key):
-    """Список элементов папки Drive: [(имя, id, resourcekey, это_папка)]."""
+    """Lists the items of a Drive folder: [(name, id, resourcekey, is_folder)]."""
     url = f"https://drive.google.com/embeddedfolderview?id={folder_id}"
     if key:
         url += f"&resourcekey={key}"
@@ -157,9 +158,9 @@ def list_folder(folder_id, key):
 
 
 def locate_files(names):
-    """Обходит папку CelebA на Drive и возвращает {имя: (id, resourcekey)} для нужных файлов."""
+    """Walks the CelebA folder on Drive and returns {name: (id, resourcekey)} for the needed files."""
     root = find_root_folder()
-    print(f"  Папка Google Drive: {root[0]}" + (" (с ключом доступа)" if root[1] else ""))
+    print(f"  Google Drive folder: {root[0]}" + (" (with an access key)" if root[1] else ""))
     found = {}
     queue = [(root[0], root[1], 0)]
     seen = set()
@@ -171,11 +172,11 @@ def locate_files(names):
         try:
             items = list_folder(fid, key)
         except Exception as e:
-            print(f"  ! Не удалось прочитать папку {fid}: {e}")
+            print(f"  ! Could not read folder {fid}: {e}")
             continue
         for name, iid, ikey, is_folder in items:
             if is_folder:
-                # Сначала папки с аннотациями и выровненными фото
+                # Folders with annotations and aligned photos go first
                 pri = 0 if re.search(r"anno|img", name, re.I) else 1
                 queue.insert(0, (iid, ikey or key, depth + 1)) if pri == 0 else queue.append((iid, ikey or key, depth + 1))
             elif name in names and name not in found:
@@ -183,19 +184,20 @@ def locate_files(names):
     return found
 
 
-# ---------- скачивание ----------
+# ---------- downloading ----------
 
+# Matched against the page Google returns; the Russian phrases cover its Russian locale.
 QUOTA_MARKERS = ("quota exceeded", "too many users have viewed or downloaded",
                  "квота превышена", "превышена квота", "слишком много пользователей")
-DEBUG_HTML = None  # путь, куда сохраняется последний ответ Google в виде страницы
+DEBUG_HTML = None  # where the last response from Google that was a page is saved
 
 
 def _stream_to_file(r, tmp, budget):
     size = r.headers.get("Content-Length")
     if size is not None and int(size) > budget.remaining:
         raise DownloadError(
-            f"Файл весит {human(int(size))}, а до лимита осталось {human(budget.remaining)}. "
-            "Скачивание не начато."
+            f"The file is {human(int(size))}, but only {human(budget.remaining)} of the limit is left. "
+            "The download was not started."
         )
     total = int(size) if size else None
     done, t0, last = 0, time.time(), 0.0
@@ -206,21 +208,21 @@ def _stream_to_file(r, tmp, budget):
                 break
             done += len(chunk)
             if done > budget.remaining:
-                raise DownloadError(f"Превышен лимит скачивания ({human(budget.limit)}). Скачивание прервано.")
+                raise DownloadError(f"The download limit ({human(budget.limit)}) was exceeded. The download was interrupted.")
             f.write(chunk)
             now = time.time()
             if now - last > 0.5:
                 last = now
                 speed = done / max(now - t0, 1e-6)
                 pct = f"{done / total * 100:5.1f}%" if total else "     "
-                sys.stdout.write(f"\r    {pct}  {human(done)}  {human(speed)}/с   ")
+                sys.stdout.write(f"\r    {pct}  {human(done)}  {human(speed)}/s   ")
                 sys.stdout.flush()
     sys.stdout.write("\n")
     return done
 
 
 def _confirm_url(page):
-    """Из страницы «не удалось проверить на вирусы» собирает ссылку подтверждения."""
+    """Builds the confirmation link from the "could not scan for viruses" page."""
     m = re.search(r'<form[^>]*id="download-form"[^>]*action="([^"]+)"', page)
     if not m:
         return None
@@ -249,12 +251,12 @@ def drive_download(file_id, key, dest, budget):
                     pass
             low = page.lower()
             if any(mk in low for mk in QUOTA_MARKERS):
-                raise DownloadError("Google Drive сообщает, что квота скачиваний этого файла исчерпана. Попробуй через несколько часов.")
+                raise DownloadError("Google Drive says the download quota of this file is used up. Try again in a few hours.")
             nxt = _confirm_url(page)
             if not nxt or attempt == 1:
                 title = re.search(r"<title>([^<]*)</title>", page)
-                raise DownloadError("Google Drive вернул страницу вместо файла"
-                                    + (f" («{title.group(1).strip()}»)" if title else "") + ".")
+                raise DownloadError("Google Drive returned a page instead of the file"
+                                    + (f" (\"{title.group(1).strip()}\")" if title else "") + ".")
             url = nxt
     except DownloadError:
         if os.path.exists(tmp):
@@ -263,13 +265,13 @@ def drive_download(file_id, key, dest, budget):
     except Exception as e:
         if os.path.exists(tmp):
             os.remove(tmp)
-        raise DownloadError(f"Ошибка сети: {e}") from e
+        raise DownloadError(f"Network error: {e}") from e
 
     with open(tmp, "rb") as f:
         head = f.read(512).lstrip().lower()
     if head.startswith(b"<!doctype html") or head.startswith(b"<html"):
         os.remove(tmp)
-        raise DownloadError("Google Drive вернул страницу вместо файла.")
+        raise DownloadError("Google Drive returned a page instead of the file.")
     os.replace(tmp, dest)
     budget.used += done
     return done
@@ -289,46 +291,46 @@ def ensure_files(raw_dir, budget, skip_download):
     missing = [n for n in ORDER if not have_file(raw_dir, n)]
     for n in ORDER:
         if n not in missing:
-            print(f"  ✓ {n} уже есть, пропускаю скачивание")
+            print(f"  ✓ {n} is already there, skipping the download")
     if not missing:
         return
     if skip_download:
-        raise DownloadError(f"Нет файлов: {', '.join(missing)}. Положи их в {raw_dir}")
+        raise DownloadError(f"Missing files: {', '.join(missing)}. Put them into {raw_dir}")
 
     need = sum(NEEDED[n][1] for n in missing)
     if need > budget.remaining:
-        raise DownloadError(f"Нужные файлы (~{human(need)}) не помещаются в лимит {human(budget.remaining)}.")
+        raise DownloadError(f"The needed files (~{human(need)}) do not fit into the limit of {human(budget.remaining)}.")
 
     global DEBUG_HTML
     DEBUG_HTML = os.path.join(raw_dir, "drive_response.html")
-    print("  Ищу файлы в папке CelebA на Google Drive…")
+    print("  Looking for the files in the CelebA folder on Google Drive…")
     located = locate_files(set(missing))
     for n in missing:
         if n not in located:
-            print(f"  ! {n} не найден в папке, попробую известную прямую ссылку")
+            print(f"  ! {n} was not found in the folder, trying the known direct link")
             located[n] = (NEEDED[n][2], None)
 
     for n in missing:
         md5, approx, _ = NEEDED[n]
         fid, key = located[n]
         path = os.path.join(raw_dir, n)
-        print(f"  ↓ {n} (~{human(approx)}), лимит осталось {human(budget.remaining)}")
+        print(f"  ↓ {n} (~{human(approx)}), {human(budget.remaining)} of the limit left")
         try:
             drive_download(fid, key, path, budget)
         except DownloadError as e:
             raise DownloadError(
                 f"{n}: {e}\n"
-                f"  Ответ Google сохранён в {DEBUG_HTML}\n"
-                f"  Что сделать: открой {PAGE_URL}, раздел Downloads, скачай {n} вручную "
-                f"и положи в папку {raw_dir}, затем запусти скрипт ещё раз "
-                f"(уже скачанное повторно качаться не будет)."
+                f"  The response from Google was saved to {DEBUG_HTML}\n"
+                f"  What to do: open {PAGE_URL}, section Downloads, download {n} by hand "
+                f"and put it into {raw_dir}, then run the script again "
+                f"(what is already downloaded will not be downloaded again)."
             ) from e
         got = md5sum(path)
-        print("    MD5 совпал" if got == md5 else
-              f"    ! MD5 не совпал ({got}). Возможно, авторы обновили файл; продолжаю.")
+        print("    MD5 matches" if got == md5 else
+              f"    ! MD5 does not match ({got}). The authors may have updated the file; continuing.")
 
 
-# ---------- обработка ----------
+# ---------- processing ----------
 
 def read_identities(path):
     by_person = {}
@@ -342,7 +344,7 @@ def read_identities(path):
 
 def read_attrs(path):
     with open(path, "r", encoding="utf-8") as f:
-        f.readline()  # количество строк
+        f.readline()  # the number of lines
         names = f.readline().split()
         idx = {n: i for i, n in enumerate(names)}
         keep = [(n, idx[n]) for n in KEEP_ATTRS if n in idx]
@@ -357,7 +359,7 @@ def read_attrs(path):
 
 
 class ImageSource:
-    """Читает фото из архива или из распакованной папки."""
+    """Reads photos from the archive or from the unpacked folder."""
 
     def __init__(self, raw_dir):
         zpath = os.path.join(raw_dir, "img_align_celeba.zip")
@@ -385,7 +387,7 @@ class ImageSource:
 
 
 def pick_diverse(files, attrs, k, rnd):
-    """Жадно отбирает k фото, максимально различающихся по признакам облика."""
+    """Greedily picks k photos that differ in appearance attributes as much as possible."""
     if len(files) <= k:
         return list(files)
     vec = {f: tuple(attrs.get(f, {}).get(a, 0) for a in LOOK_ATTRS) for f in files}
@@ -400,16 +402,16 @@ def pick_diverse(files, attrs, k, rnd):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Подготовка CelebA для тренажёра «Опознание»")
-    ap.add_argument("--out", default="celeba_trainer", help="папка результата (по умолчанию ./celeba_trainer)")
-    ap.add_argument("--raw", default=None, help="папка для скачанных файлов (по умолчанию <out>/raw)")
-    ap.add_argument("--people", type=int, default=1500, help="сколько человек отобрать (1500; для телефона 600)")
-    ap.add_argument("--per-person", type=int, default=15, help="максимум фото на человека (15)")
-    ap.add_argument("--min-photos", type=int, default=10, help="минимум фото у человека в исходном наборе (10)")
-    ap.add_argument("--max-download-gb", type=float, default=3.0, help="лимит скачивания в ГБ (3)")
-    ap.add_argument("--seed", type=int, default=42, help="зерно случайного отбора")
-    ap.add_argument("--skip-download", action="store_true", help="ничего не скачивать, файлы уже лежат в --raw")
-    ap.add_argument("--delete-zip", action="store_true", help="удалить архив с фото после обработки")
+    ap = argparse.ArgumentParser(description="Prepares CelebA for the Familiar trainer")
+    ap.add_argument("--out", default="celeba_trainer", help="output folder (default ./celeba_trainer)")
+    ap.add_argument("--raw", default=None, help="folder for the downloaded files (default <out>/raw)")
+    ap.add_argument("--people", type=int, default=1500, help="how many people to select (1500; 600 for a phone)")
+    ap.add_argument("--per-person", type=int, default=15, help="maximum photos per person (15)")
+    ap.add_argument("--min-photos", type=int, default=10, help="minimum photos a person must have in the source set (10)")
+    ap.add_argument("--max-download-gb", type=float, default=3.0, help="download limit in GB (3)")
+    ap.add_argument("--seed", type=int, default=42, help="seed of the random selection")
+    ap.add_argument("--skip-download", action="store_true", help="download nothing, the files are already in --raw")
+    ap.add_argument("--delete-zip", action="store_true", help="delete the photo archive when done")
     args = ap.parse_args()
 
     out = os.path.abspath(os.path.expanduser(args.out))
@@ -418,40 +420,40 @@ def main():
     budget = Budget(int(args.max_download_gb * GB))
 
     os.makedirs(out, exist_ok=True)
-    print(f"Результат: {out}")
-    print(f"Лимит скачивания: {human(budget.limit)}")
+    print(f"Output: {out}")
+    print(f"Download limit: {human(budget.limit)}")
 
     need = sum(NEEDED[n][1] for n in ORDER if not have_file(raw, n)) + 500_000_000
     free = shutil.disk_usage(out).free
     if free < need:
-        print(f"Мало места на диске: свободно {human(free)}, нужно примерно {human(need)}.")
+        print(f"Not enough disk space: {human(free)} free, about {human(need)} needed.")
         sys.exit(1)
 
-    print("\n1. Файлы CelebA")
+    print("\n1. CelebA files")
     try:
         ensure_files(raw, budget, args.skip_download)
     except DownloadError as e:
-        print(f"\nОстановлено: {e}")
+        print(f"\nStopped: {e}")
         sys.exit(2)
-    print(f"  Скачано за этот запуск: {human(budget.used)}")
+    print(f"  Downloaded in this run: {human(budget.used)}")
 
-    print("\n2. Разметка")
+    print("\n2. Annotations")
     by_person = read_identities(os.path.join(raw, "identity_CelebA.txt"))
     attrs = read_attrs(os.path.join(raw, "list_attr_celeba.txt"))
     eligible = sorted((p for p, fs in by_person.items() if len(fs) >= args.min_photos), key=int)
-    print(f"  Всего людей: {len(by_person)}, с {args.min_photos}+ фото: {len(eligible)}")
+    print(f"  People in total: {len(by_person)}, with {args.min_photos}+ photos: {len(eligible)}")
     rnd = random.Random(args.seed)
     rnd.shuffle(eligible)
     selected = eligible[: args.people]
-    print(f"  Отобрано: {len(selected)}")
+    print(f"  Selected: {len(selected)}")
 
-    print("\n3. Отбор и раскладка фото")
+    print("\n3. Selecting and sorting the photos")
     if os.path.exists(faces):
         shutil.rmtree(faces)
     os.makedirs(faces)
     src = ImageSource(raw)
     if not src.index:
-        print("  Не нашёл фото ни в img_align_celeba.zip, ни в папке img_align_celeba.")
+        print("  No photos found in img_align_celeba.zip or in the img_align_celeba folder.")
         sys.exit(3)
     manifest = {"source": "CelebA (MMLab CUHK), non-commercial research use only",
                 "attrs": KEEP_ATTRS, "people": []}
@@ -471,7 +473,7 @@ def main():
             photos.append({"file": f"{pid}/{f}", "attrs": attrs.get(f, {})})
         manifest["people"].append({"id": pid, "photos": photos})
         if i % 50 == 0 or i == len(selected):
-            sys.stdout.write(f"\r  {i}/{len(selected)} человек, {written} фото, {human(total_bytes)}   ")
+            sys.stdout.write(f"\r  {i}/{len(selected)} people, {written} photos, {human(total_bytes)}   ")
             sys.stdout.flush()
     sys.stdout.write("\n")
     src.close()
@@ -482,11 +484,11 @@ def main():
         zpath = os.path.join(raw, "img_align_celeba.zip")
         if os.path.exists(zpath):
             os.remove(zpath)
-            print(f"  Архив удалён: {zpath}")
+            print(f"  Archive deleted: {zpath}")
 
-    print("\nГотово.")
-    print(f"  Папка для тренажёра: {faces}")
-    print(f"  {len(selected)} человек, {written} фото, {human(total_bytes)}")
+    print("\nDone.")
+    print(f"  Folder for the trainer: {faces}")
+    print(f"  {len(selected)} people, {written} photos, {human(total_bytes)}")
 
 
 if __name__ == "__main__":
