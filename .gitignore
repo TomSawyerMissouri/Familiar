@@ -1,0 +1,22 @@
+# Rust
+/target/
+
+# macOS
+.DS_Store
+
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# Face data: licensed for personal research use only, never commit it
+celeba_trainer/
+faces/
+data/
+*.jpg
+*.jpeg
+*.png
+*.zip
+*.part
+drive_response.html
+history.json

@@ -1,0 +1,12 @@
+[package]
+name = "familiar-core"
+description = "Training logic for Familiar: sessions, repeats, adaptive speed, scoring."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true
