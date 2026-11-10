@@ -17,6 +17,9 @@ eframe = { version = "0.32.3", default-features = false, features = ["accesskit"
 wgpu = { version = "25.0.2", default-features = false, features = ["metal", "wgsl"] }
 familiar-core = { path = "../familiar-core" }
 image = { version = "0.25.9", default-features = false, features = ["jpeg"] }
+rodio = { version = "0.21.1", default-features = false, features = ["playback"] }
+rfd = "0.17.2"
+egui_plot = "0.33.0"
 
 [package.metadata.bundle]
 name = "Familiar"
@@ -27,3 +30,6 @@ osx_minimum_system_version = "12.0"
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+tempfile = "3.27.0"

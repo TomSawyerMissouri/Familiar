@@ -5,16 +5,19 @@ use std::path::PathBuf;
 
 use eframe::egui::{self, Align2, Color32, Key, Pos2, Rect, StrokeKind, Vec2};
 use familiar_core::engine::PUNISHMENT_PAUSE_MS;
-use familiar_core::{Distortion, Engine, EngineState, Event, Mistake, SessionResult};
+use familiar_core::{Distortion, Engine, EngineState, Event, Mistake, Punishment, SessionResult};
 
 use crate::loader::Loader;
 use crate::render::{PHOTO_ASPECT, paint_photo};
+use crate::sound::Sound;
 use crate::theme;
 
 /// How many trials ahead photos are decoded.
 const PRELOAD_AHEAD: usize = 6;
 /// How long the green frame stays after a hit.
 const HIT_FRAME_MS: u64 = 220;
+/// How far the picture is thrown about at the start of a hard punishment.
+const SHAKE_POINTS: f32 = 22.0;
 
 /// How a session screen ended.
 pub enum SessionExit {
@@ -31,6 +34,7 @@ enum Photo {
 pub struct SessionView {
     engine: Engine,
     faces_dir: PathBuf,
+    punishment: Punishment,
     loader: Loader,
     photos: HashMap<usize, Photo>,
     /// First trial whose photo has not been requested yet.
@@ -46,7 +50,12 @@ pub struct SessionView {
 
 impl SessionView {
     /// Starts a session at `now_ms`.
-    pub fn new(mut engine: Engine, faces_dir: PathBuf, now_ms: u64) -> Self {
+    pub fn new(
+        mut engine: Engine,
+        faces_dir: PathBuf,
+        punishment: Punishment,
+        now_ms: u64,
+    ) -> Self {
         let countdown = engine
             .start(now_ms)
             .into_iter()
@@ -57,6 +66,7 @@ impl SessionView {
         let mut view = Self {
             engine,
             faces_dir,
+            punishment,
             loader: Loader::new(),
             photos: HashMap::new(),
             next_request: 0,
@@ -71,11 +81,11 @@ impl SessionView {
     }
 
     /// Runs one frame. Returns how the session ended, once it has.
-    pub fn update(&mut self, ui: &mut egui::Ui, now_ms: u64) -> Option<SessionExit> {
+    pub fn update(&mut self, ui: &mut egui::Ui, now_ms: u64, sound: &Sound) -> Option<SessionExit> {
         let ctx = ui.ctx().clone();
         ctx.request_repaint();
 
-        let layout = Layout::new(ui.max_rect());
+        let layout = Layout::new(ui.max_rect(), self.shake(now_ms));
         let input = ctx.input(|i| Input {
             respond: i.key_pressed(Key::Space)
                 || i.key_pressed(Key::J)
@@ -127,7 +137,7 @@ impl SessionView {
                 self.engine.tick(now_ms)
             };
             for event in events {
-                exit = self.apply(event, now_ms).or(exit);
+                exit = self.apply(event, now_ms, sound).or(exit);
             }
         }
 
@@ -135,7 +145,7 @@ impl SessionView {
         exit
     }
 
-    fn apply(&mut self, event: Event, now_ms: u64) -> Option<SessionExit> {
+    fn apply(&mut self, event: Event, now_ms: u64, sound: &Sound) -> Option<SessionExit> {
         match event {
             Event::Countdown(n) => self.countdown = Some(n),
             Event::ShowFace { index, trial, .. } => {
@@ -146,12 +156,34 @@ impl SessionView {
                 self.request_photos(index + 1);
             }
             Event::HideFace => self.face_visible = false,
-            Event::Hit { .. } => self.hit_until = now_ms + HIT_FRAME_MS,
-            Event::Punish(mistake) => self.flash = Some((mistake, now_ms)),
+            Event::Hit { .. } => {
+                self.hit_until = now_ms + HIT_FRAME_MS;
+                sound.click();
+            }
+            Event::Punish(mistake) => {
+                if self.punishment != Punishment::Off {
+                    self.flash = Some((mistake, now_ms));
+                    sound.punish();
+                }
+            }
             Event::ExposureChanged { .. } => {}
             Event::Finished(result) => return Some(SessionExit::Finished(result)),
         }
         None
+    }
+
+    /// Offset of the whole picture while a hard punishment shakes it.
+    fn shake(&self, now_ms: u64) -> Vec2 {
+        let Some((_, started)) = self.flash else {
+            return Vec2::ZERO;
+        };
+        let age = now_ms.saturating_sub(started);
+        if self.punishment != Punishment::Hard || age >= PUNISHMENT_PAUSE_MS {
+            return Vec2::ZERO;
+        }
+        let t = age as f32;
+        let strength = SHAKE_POINTS * (1.0 - t / PUNISHMENT_PAUSE_MS as f32);
+        Vec2::new((t * 0.21).sin(), (t * 0.33).cos()) * strength
     }
 
     /// Queues photos up to `PRELOAD_AHEAD` trials from `from`.
@@ -307,7 +339,7 @@ impl SessionView {
             if age < PUNISHMENT_PAUSE_MS {
                 let fade = 1.0 - age as f32 / PUNISHMENT_PAUSE_MS as f32;
                 painter.rect_filled(
-                    layout.screen,
+                    layout.overlay,
                     0.0,
                     theme::BAD.gamma_multiply(0.45 + 0.5 * fade),
                 );
@@ -316,7 +348,7 @@ impl SessionView {
                     Mistake::Miss => "MISS",
                 };
                 painter.text(
-                    layout.screen.center(),
+                    layout.overlay.center(),
                     Align2::CENTER_CENTER,
                     text,
                     theme::mono(72.0),
@@ -326,16 +358,16 @@ impl SessionView {
         }
 
         if paused {
-            painter.rect_filled(layout.screen, 0.0, Color32::from_black_alpha(200));
+            painter.rect_filled(layout.overlay, 0.0, Color32::from_black_alpha(200));
             painter.text(
-                layout.screen.center() - Vec2::new(0.0, 16.0),
+                layout.overlay.center() - Vec2::new(0.0, 16.0),
                 Align2::CENTER_CENTER,
                 "PAUSED",
                 theme::mono(44.0),
                 theme::TEXT,
             );
             painter.text(
-                layout.screen.center() + Vec2::new(0.0, 30.0),
+                layout.overlay.center() + Vec2::new(0.0, 30.0),
                 Align2::CENTER_CENTER,
                 "Space to continue · Esc to quit",
                 theme::label(15.0),
@@ -355,13 +387,19 @@ struct Input {
 /// Where things are on the session screen.
 struct Layout {
     screen: Rect,
+    /// The panel without the shake, for overlays that must cover everything.
+    overlay: Rect,
     progress: Rect,
     photo: Rect,
     button: Rect,
 }
 
 impl Layout {
-    fn new(screen: Rect) -> Self {
+    /// `screen` is the whole panel; everything but the full-screen overlays
+    /// is moved by `shake`.
+    fn new(screen: Rect, shake: Vec2) -> Self {
+        let overlay = screen;
+        let screen = screen.translate(shake);
         let progress = Rect::from_min_size(screen.min, Vec2::new(screen.width(), 4.0));
         let button_size = Vec2::new(380.0f32.min(screen.width() - 48.0), 72.0);
         let button = Rect::from_center_size(
@@ -379,6 +417,7 @@ impl Layout {
         let photo = Rect::from_center_size(area.center(), Vec2::new(height * PHOTO_ASPECT, height));
         Self {
             screen,
+            overlay,
             progress,
             photo,
             button,

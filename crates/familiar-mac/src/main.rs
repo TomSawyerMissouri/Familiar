@@ -1,9 +1,11 @@
 //! Familiar: a face recognition trainer for macOS.
 
 mod app;
+mod history_view;
 mod loader;
 mod render;
 mod session_view;
+mod sound;
 mod theme;
 
 fn main() -> eframe::Result {
